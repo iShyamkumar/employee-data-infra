@@ -1,0 +1,26 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Employee data pipeline - Lambda export, Glue transform, Athena
+
+Parameters:
+  Project:
+    Type: String
+    Default: employee-data-sruthi
+  EcsCluster:
+    Type: String
+    Default: employee-api-sruthi-cluster
+  EcsService:
+    Type: String
+    Default: employee-api-sruthi-service
+  DatabaseName:
+    Type: String
+    Default: testdb
+  ScheduleState:
+    Type: String
+    Default: DISABLED
+    AllowedValues: [ENABLED, DISABLED]
+
+Resources:
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${Project}-${AWS::AccountId}
