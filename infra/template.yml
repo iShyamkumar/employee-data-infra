@@ -4,7 +4,7 @@ Description: Employee data pipeline - Lambda export, Glue transform, Athena
 Parameters:
   Project:
     Type: String
-    Default: employee-data-sruthi
+    Default: employee-data-shyamkumar
   EcsCluster:
     Type: String
     Default: employee-api-sruthi-cluster
@@ -24,3 +24,118 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub ${Project}-${AWS::AccountId}
+
+  ExportRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: export-permissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${DataBucket.Arn}/raw/*
+              - Effect: Allow
+                Action: [ecs:ListTasks, ecs:DescribeTasks, ec2:DescribeNetworkInterfaces]
+                Resource: '*'
+              - Effect: Allow
+                Action: glue:StartJobRun
+                Resource: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:job/${Project}-transform
+
+  ExportFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${Project}-export
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt ExportRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          ECS_CLUSTER: !Ref EcsCluster
+          ECS_SERVICE: !Ref EcsService
+          BUCKET: !Ref DataBucket
+          GLUE_JOB: !Sub ${Project}-transform
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return "Placeholder. Deploy the app repo to replace this code."
+
+  GlueRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: glue.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies:
+        - PolicyName: glue-s3-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub ${DataBucket.Arn}/raw/*
+                  - !Sub ${DataBucket.Arn}/scripts/*
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+                Resource: !Sub ${DataBucket.Arn}/curated/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt DataBucket.Arn
+
+  TransformJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Name: !Sub ${Project}-transform
+      Role: !GetAtt GlueRole.Arn
+      GlueVersion: '4.0'
+      WorkerType: G.1X
+      NumberOfWorkers: 2
+      Timeout: 10
+      MaxRetries: 0
+      Command:
+        Name: glueetl
+        PythonVersion: '3'
+        ScriptLocation: !Sub s3://${DataBucket}/scripts/transform.py
+      DefaultArguments:
+        --BUCKET: !Ref DataBucket
+        --job-language: python
+
+  DailySchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${Project}-daily
+      ScheduleExpression: cron(0 6 * * ? *)
+      State: !Ref ScheduleState
+      Targets:
+        - Arn: !GetAtt ExportFunction.Arn
+          Id: export
+
+  SchedulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExportFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailySchedule.Arn
+
+Outputs:
+  DataBucket:
+    Value: !Ref DataBucket
+  FunctionName:
+    Value: !Ref ExportFunction
