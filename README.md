@@ -1,9 +1,24 @@
 # Deploy the stack
 
-aws cloudformation deploy `
-  --template-file template.yml `
-  --stack-name employee-data-shyamkumar `
-  --capabilities CAPABILITY_IAM `
+aws cloudformation deploy
+  --template-file template.yml
+  --stack-name employee-data-shyamkumar
+  --capabilities CAPABILITY_IAM
+  --profile employee-lab
+
+# Gives Plan (Changes) and Won't execute 
+
+aws cloudformation deploy 
+  --template-file template.yml 
+  --stack-name employee-data-shyamkumar
+  --capabilities CAPABILITY_IAM 
+  --no-execute-changeset 
+  --profile employee-lab
+
+# Execute change set
+aws cloudformation execute-change-set 
+  --stack-name employee-data-shyamkumar 
+  --change-set-name YOUR_CHANGE_SET_NAME 
   --profile employee-lab
 
 # Destroy the stack

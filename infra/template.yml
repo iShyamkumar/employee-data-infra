@@ -13,7 +13,7 @@ Parameters:
     Default: employee-api-sruthi-service
   DatabaseName:
     Type: String
-    Default: testdb
+    Default: testdb_curated_shyamkumar
   ScheduleState:
     Type: String
     Default: DISABLED
@@ -133,6 +133,32 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt DailySchedule.Arn
+
+  Database:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Ref DatabaseName
+
+  Crawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Name: !Sub ${Project}-crawler
+      Role: !GetAtt GlueRole.Arn
+      DatabaseName: !Ref Database
+      Targets:
+        S3Targets:
+          - Path: !Sub s3://${DataBucket}/curated/employees/
+
+  AthenaWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: !Sub ${Project}-wg
+      RecursiveDeleteOption: true
+      WorkGroupConfiguration:
+        ResultConfiguration:
+          OutputLocation: !Sub s3://${DataBucket}/athena-results/
 
 Outputs:
   DataBucket:
