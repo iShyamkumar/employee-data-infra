@@ -3,3 +3,4 @@
 uv.lock
 .python-version
 pyproject.toml
+aws_access_portal.url
